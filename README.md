@@ -28,3 +28,25 @@ output: {"error":"Invalid product details: price must be greater than zero"}
 
 command7: curl.exe -X POST http://127.0.0.1:8080/products -H "Content-Type: application/json" -d "{invalid-json}"
 output: {"error":"Invalid request body"}
+
+## Testing stage3
+command1: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"eea449a2-5cc7-4fe1-829a-be8dbf3c7091\",\"quantity\":2}]}"
+output: {"items":[{"product_id":"eea449a2-5cc7-4fe1-829a-be8dbf3c7091","quantity":2,"total":99.98}],"total":99.98}
+
+command2: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[]}"
+output: {"error":"Sale must contain at least one item"}
+
+command3: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"00000000-0000-0000-0000-000000000000\",\"quantity\":1}]}"
+output: {"error":"Product not found"}
+
+command4: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"550e8400-e29b-41d4-a716-446655440000\",\"quantity\":-1}]}"
+output: {"error":"Quantity must be a positive integer"}
+
+command5: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"550e8400-e29b-41d4-a716-446655440000\",\"quantity\":1.5}]}"
+output: {"error":"Invalid request body"}
+
+command6: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"550e8400-e29b-41d4-a716-446655440000\"}]}"
+output: {"error":"Quantity must be a positive integer"}
+
+command7: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"a767983f-9d79-4d19-9fa3-582ed7ba3d83\",\"quantity\":2},{\"product_id\":\"c790aab5-3e7e-4028-b92e-c6fe6711c39b\",\"quantity\":3}]}"
+output: {"items":[{"product_id":"a767983f-9d79-4d19-9fa3-582ed7ba3d83","quantity":2,"total":200},{"product_id":"c790aab5-3e7e-4028-b92e-c6fe6711c39b","quantity":3,"total":60}],"total":260}
