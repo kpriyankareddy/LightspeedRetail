@@ -5,6 +5,7 @@ import (
 	"LightspeedRetail/repositories"
 	"bytes"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -168,5 +169,79 @@ func TestCreateSale_DecimalQuantity(t *testing.T) {
 	}
 	if actualError != expectedError {
 		t.Errorf("Expected error message '%s', got '%s'", expectedError, actualError)
+	}
+}
+
+func TestCreateSale_WithValidDiscount(t *testing.T) {
+	// Get actual products from repository to ensure valid product IDs
+	products := repositories.GetAllProducts()
+	if len(products) < 2 {
+		t.Fatal("Not enough products in repository for this test")
+	}
+
+	product1 := products[0]
+	product2 := products[1]
+
+	// Create a sale with two items and a discount
+	body := `{
+		"items": [
+			{"product_id": "` + product1.ID.String() + `", "quantity": 2},
+			{"product_id": "` + product2.ID.String() + `", "quantity": 3}
+		],
+		"discount": 20.00
+	}`
+
+	req, _ := http.NewRequest("POST", "/sales", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	// Call the sale handler
+	handlers.CreateSaleHandler(resp, req)
+
+	// Ensure the response is successful
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+
+	// Decode response safely
+	var response map[string]interface{}
+	if err := json.Unmarshal(resp.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response JSON: %v", err)
+	}
+
+	// Ensure "total" and "discount" exist in the response before using them
+	if _, exists := response["total"]; !exists {
+		t.Fatalf("Response does not contain 'total' field: %v", response)
+	}
+	if _, exists := response["discount"]; !exists {
+		t.Fatalf("Response does not contain 'discount' field: %v", response)
+	}
+
+	// Expected values
+	expectedTotal := (float64(2)*product1.Price + float64(3)*product2.Price) - 20.00
+	actualTotal := response["total"].(float64)
+
+	if actualTotal != expectedTotal {
+		t.Errorf("Expected total after discount %.2f, got %.2f", expectedTotal, actualTotal)
+	}
+
+	// Check if the discount is distributed correctly
+	items := response["items"].([]interface{})
+	item1 := items[0].(map[string]interface{})
+	item2 := items[1].(map[string]interface{})
+
+	expectedItem1Discount := (float64(2) * product1.Price / (float64(2)*product1.Price + float64(3)*product2.Price)) * 20.00
+	expectedItem2Discount := (float64(3) * product2.Price / (float64(2)*product1.Price + float64(3)*product2.Price)) * 20.00
+
+	actualItem1Discount := item1["discount"].(float64)
+	actualItem2Discount := item2["discount"].(float64)
+
+	// Allow minor rounding differences due to float precision
+	const tolerance = 0.01
+	if math.Abs(actualItem1Discount-expectedItem1Discount) > tolerance {
+		t.Errorf("Expected item1 discount %.2f, got %.2f", expectedItem1Discount, actualItem1Discount)
+	}
+	if math.Abs(actualItem2Discount-expectedItem2Discount) > tolerance {
+		t.Errorf("Expected item2 discount %.2f, got %.2f", expectedItem2Discount, actualItem2Discount)
 	}
 }

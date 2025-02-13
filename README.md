@@ -50,3 +50,29 @@ output: {"error":"Quantity must be a positive integer"}
 
 command7: curl.exe -X POST http://127.0.0.1:8080/sales -H "Content-Type: application/json" -d "{\"items\":[{\"product_id\":\"a767983f-9d79-4d19-9fa3-582ed7ba3d83\",\"quantity\":2},{\"product_id\":\"c790aab5-3e7e-4028-b92e-c6fe6711c39b\",\"quantity\":3}]}"
 output: {"items":[{"product_id":"a767983f-9d79-4d19-9fa3-582ed7ba3d83","quantity":2,"total":200},{"product_id":"c790aab5-3e7e-4028-b92e-c6fe6711c39b","quantity":3,"total":60}],"total":260}
+
+## Testing stage4
+command: {"items":[{"product_id":"7a4cfaa7-b0f2-4fca-b1df-86efedbd9e14","quantity":2,"total":99.98,"discount":4.99},{"product_id":"e0544a89-668f-4da0-861d-4ae72c40ef6c","quantity":3,"total":300,"discount":15.01}],"total":379.98,"discount":20}
+output: {"items":[{"product_id":"7a4cfaa7-b0f2-4fca-b1df-86efedbd9e14","quantity":2,"total":99.98,"discount":4.99},{"product_id":"e0544a89-668f-4da0-861d-4ae72c40ef6c","quantity":3,"total":300,"discount":15.01}],"total":379.98,"discount":20}
+
+### Discount Application Logic
+1. Total Discount is Distributed Proportionally  
+   - Each item's discount share is calculated as:  
+     \[
+     \text{Item Discount} = \left( \frac{\text{Item Total}}{\text{Sale Total}} \right) \times \text{Discount Amount}
+     \]
+   - Example:  
+     ```
+     Total Sale Amount: $100  
+     Discount: $20  
+     Item A Total: $40  
+     Item B Total: $60  
+     ```
+     - Item A Discount = (40/100) × 20 = **$8**
+     - Item B Discount = (60/100) × 20 = **$12**
+
+2. Avoiding Rounding Errors  
+   - To ensure that the total discount **exactly matches** the requested amount:
+     - The discount is **rounded down** for all items except the last one.
+     - The last item is assigned any remaining discount to **fix rounding differences**.
+

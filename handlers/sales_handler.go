@@ -4,6 +4,7 @@ import (
 	"LightspeedRetail/models"
 	"LightspeedRetail/repositories"
 	"encoding/json"
+	"math"
 	"net/http"
 )
 
@@ -19,7 +20,6 @@ func sendSalesErrorResponse(w http.ResponseWriter, statusCode int, message strin
 	json.NewEncoder(w).Encode(SalesErrorResponse{Error: message})
 }
 
-// CreateSaleHandler processes a sale transaction
 func CreateSaleHandler(w http.ResponseWriter, r *http.Request) {
 	var sale models.Sale
 
@@ -35,33 +35,54 @@ func CreateSaleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total := 0.0
+	totalPrice := 0.0
 
 	// Process each line item
-	for i, item := range sale.Items {
-		// Validate quantity (must be positive integer)
-		if item.Quantity <= 0 {
+	for i := range sale.Items {
+		// Validate that quantity is a positive integer FIRST
+		if sale.Items[i].Quantity <= 0 {
 			sendSalesErrorResponse(w, http.StatusBadRequest, "Quantity must be a positive integer")
 			return
 		}
 
-		// Fetch product details
-		product, err := repositories.GetProductByID(item.ProductID)
+		product, err := repositories.GetProductByID(sale.Items[i].ProductID)
 		if err != nil {
 			sendSalesErrorResponse(w, http.StatusNotFound, "Product not found")
 			return
 		}
 
 		// Calculate total for this item
-		item.Total = float64(item.Quantity) * product.Price
-		sale.Items[i] = item
-		total += item.Total
+		sale.Items[i].Total = float64(sale.Items[i].Quantity) * product.Price
+		totalPrice += sale.Items[i].Total
 	}
 
-	// Set total sale price
-	sale.Total = total
+	// Validate discount AFTER quantity check
+	if sale.Discount < 0 {
+		sendSalesErrorResponse(w, http.StatusBadRequest, "Discount must be a positive value")
+		return
+	}
 
-	// Return the sale response
+	if sale.Discount > totalPrice {
+		sendSalesErrorResponse(w, http.StatusBadRequest, "Discount cannot exceed total price")
+		return
+	}
+
+	// Distribute discount proportionally
+	remainingDiscount := sale.Discount
+	for i := range sale.Items {
+		itemShare := (sale.Items[i].Total / totalPrice) * sale.Discount
+		sale.Items[i].Discount = math.Floor(itemShare*100) / 100 // Round down to 2 decimal places
+		remainingDiscount -= sale.Items[i].Discount
+	}
+
+	// Adjust last item to fix rounding errors
+	lastIndex := len(sale.Items) - 1
+	sale.Items[lastIndex].Discount += remainingDiscount
+
+	// Update the total after applying the discount
+	sale.Total = totalPrice - sale.Discount
+
+	// Return the updated sale response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sale)
 }
